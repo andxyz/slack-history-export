@@ -1,0 +1,9 @@
+# python virtual env
+venv
+
+# slack stuff
+config.toml
+metadata.json
+channels/
+direct_messages/
+private_channels/
