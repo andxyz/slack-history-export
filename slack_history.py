@@ -1,7 +1,56 @@
+# MIT License
+
+# Copyright (c) 2016 Chandler Abraham
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 from slacker import Slacker
 import json
 import argparse
 import os
+
+# This script finds all channels, private channels and direct messages
+# that your user participates in, downloads the complete history for
+# those converations and writes each conversation out to seperate json files.
+#
+# This user centric history gathering is nice because the official slack data exporter
+# only exports public channels.
+#
+# PS, this only works if your slack team has a paid account which allows for unlimited history.
+#
+# PPS, this use of the API is blessed by Slack.
+# https://get.slack.help/hc/en-us/articles/204897248
+# " If you want to export the contents of your own private groups and direct messages
+# please see our API documentation."
+#
+# get your slack user token at the bottom of this page
+# https://api.slack.com/web
+#
+# dependencies:
+#  pip install slacker # https://github.com/os/slacker
+#
+# usage examples
+#  python slack_history.py --token='123token'
+#  python slack_history.py --token='123token' --dryRun=True
+#  python slack_history.py --token='123token' --skipDirectMessages
+#  python slack_history.py --token='123token' --skipDirectMessages --skipPrivateChannels
+
 
 # fetches the complete message history for a channel/group/im
 #
@@ -11,6 +60,7 @@ import os
 # slack.im
 #
 # channelId is the id of the channel/group/im you want to download history for.
+
 def getHistory(pageableObject, channelId, pageSize = 100):
   messages = []
   lastTimestamp = None
