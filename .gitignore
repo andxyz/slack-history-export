@@ -7,3 +7,4 @@ metadata.json
 channels/
 direct_messages/
 private_channels/
+__pycache__
