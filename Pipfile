@@ -1,5 +1,6 @@
 [[source]]
-url = "https://pypi.python.org/simple"
+name = "pypi"
+url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
@@ -7,4 +8,7 @@ pep8 = "*"
 ipdb = "*"
 
 [packages]
-slacker = "*"
+slacker = "~=0.13.0"
+
+[requires]
+python_version = "3.7"
