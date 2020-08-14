@@ -55,8 +55,8 @@ import os
 # fetches the complete message history for a channel/group/im
 #
 # pageableObject could be:
-# slack.channel
-# slack.groups
+# slack.channel -> slack.conversation
+# slack.groups -> slack.usergroups
 # slack.im
 #
 # channelId is the id of the channel/group/im you want to download history for.
@@ -69,8 +69,7 @@ def getHistory(pageableObject, channelId, pageSize = 100):
     response = pageableObject.history(
       channel = channelId,
       latest  = lastTimestamp,
-      oldest  = 0,
-      count   = pageSize
+      oldest  = 0
     ).body
 
     messages.extend(response['messages'])
@@ -87,7 +86,7 @@ def mkdir(directory):
 
 # fetch and write history for all public channels
 def getChannels(slack, dryRun):
-  channels = slack.channels.list().body['channels']
+  channels = slack.conversations.list().body['channels']
 
   print("\nfound channels: ")
   for channel in channels:
@@ -99,8 +98,8 @@ def getChannels(slack, dryRun):
     for channel in channels:
       print("getting history for channel {0}".format(channel['name']))
       fileName = "{parent}/{file}.json".format(parent = parentDir, file = channel['name'])
-      messages = getHistory(slack.channels, channel['id'])
-      channelInfo = slack.channels.info(channel['id']).body['channel']
+      messages = getHistory(slack.conversations, channel['id'])
+      channelInfo = slack.conversations.info(channel['id']).body['channel']
       with open(fileName, 'w') as outFile:
         print("writing {0} records to {1}".format(len(messages), fileName))
         json.dump({'channel_info': channelInfo, 'messages': messages }, outFile, indent=4)
@@ -130,7 +129,7 @@ def getDirectMessages(slack, ownerId, userIdNameMap, dryRun):
 # fetch and write history for all private channels
 # also known as groups in the slack API.
 def getPrivateChannels(slack, dryRun):
-  groups = slack.groups.list().body['groups']
+  groups = slack.usergroups.list().body['groups']
 
   print("\nfound private channels:")
   for group in groups:
@@ -144,8 +143,8 @@ def getPrivateChannels(slack, dryRun):
       messages = []
       print("getting history for private channel {0} with id {1}".format(group['name'], group['id']))
       fileName = "{parent}/{file}.json".format(parent = parentDir, file = group['name'])
-      messages = getHistory(slack.groups, group['id'])
-      channelInfo = slack.groups.info(group['id']).body['group']
+      messages = getHistory(slack.usergroups, group['id'])
+      channelInfo = slack.usergroups.info(group['id']).body['group']
       with open(fileName, 'w') as outFile:
         print("writing {0} records to {1}".format(len(messages), fileName))
         json.dump({'channel_info': channelInfo, 'messages': messages}, outFile, indent=4)
