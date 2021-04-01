@@ -35,8 +35,8 @@ https://get.slack.help/hc/en-us/articles/204897248
 cd slack-history-export/
 brew install python3
 pip3 install pipenv
+pipenv --python=/usr/local/bin/python3 shell
 pipenv install
-pipenv shell
 pipenv run python slack_history.py --token='123token'
 ```
 
