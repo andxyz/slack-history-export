@@ -1,5 +1,7 @@
 a fork of https://gist.github.com/Chandler/fb7a070f52883849de35
 
+_Note: The API calls were updated for the new `conversation` API, but the instructions below to get a token are outdated._
+
 My fork is solely to document how to use the code with python3. If you are
 unfamiliar with python3 but own a mac laptop.
 

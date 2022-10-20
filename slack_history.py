@@ -55,9 +55,7 @@ import os
 # fetches the complete message history for a channel/group/im
 #
 # pageableObject could be:
-# slack.channel
-# slack.groups
-# slack.im
+# slack.conversations
 #
 # channelId is the id of the channel/group/im you want to download history for.
 
@@ -70,7 +68,7 @@ def getHistory(pageableObject, channelId, pageSize = 100):
       channel = channelId,
       latest  = lastTimestamp,
       oldest  = 0,
-      count   = pageSize
+      limit   = pageSize
     ).body
 
     messages.extend(response['messages'])
@@ -87,7 +85,7 @@ def mkdir(directory):
 
 # fetch and write history for all public channels
 def getChannels(slack, dryRun):
-  channels = slack.channels.list().body['channels']
+  channels = slack.conversations.list(types="public_channel").body['channels']
 
   print("\nfound channels: ")
   for channel in channels:
@@ -99,8 +97,8 @@ def getChannels(slack, dryRun):
     for channel in channels:
       print("getting history for channel {0}".format(channel['name']))
       fileName = "{parent}/{file}.json".format(parent = parentDir, file = channel['name'])
-      messages = getHistory(slack.channels, channel['id'])
-      channelInfo = slack.channels.info(channel['id']).body['channel']
+      messages = getHistory(slack.conversations, channel['id'])
+      channelInfo = slack.conversations.info(channel['id']).body['channel']
       with open(fileName, 'w') as outFile:
         print("writing {0} records to {1}".format(len(messages), fileName))
         json.dump({'channel_info': channelInfo, 'messages': messages }, outFile, indent=4)
@@ -108,21 +106,24 @@ def getChannels(slack, dryRun):
 # fetch and write history for all direct message conversations
 # also known as IMs in the slack API.
 def getDirectMessages(slack, ownerId, userIdNameMap, dryRun):
-  dms = slack.im.list().body['ims']
+  dms = slack.conversations.list(types="im,mpim").body['channels']
 
   print("\nfound direct messages (1:1) with the following users:")
+  
   for dm in dms:
-    print(userIdNameMap.get(dm['user'], dm['user'] + " (name unknown)"))
+    dm_recipient = dm["name"] if "name" in dm else dm["user"]
+    print(userIdNameMap.get(dm_recipient, dm_recipient + " (name unknown)"))
 
   if not dryRun:
     parentDir = "direct_messages"
     mkdir(parentDir)
     for dm in dms:
-      name = userIdNameMap.get(dm['user'], dm['user'] + " (name unknown)")
+      dm_recipient = dm["name"] if "name" in dm else dm["user"]
+      name = userIdNameMap.get(dm_recipient, dm_recipient + " (name unknown)")
       print("getting history for direct messages with {0}".format(name))
       fileName = "{parent}/{file}.json".format(parent = parentDir, file = name)
-      messages = getHistory(slack.im, dm['id'])
-      channelInfo = {'members': [dm['user'], ownerId]}
+      messages = getHistory(slack.conversations, dm['id'])
+      channelInfo = {'members': [dm_recipient, ownerId]}
       with open(fileName, 'w') as outFile:
         print("writing {0} records to {1}".format(len(messages), fileName))
         json.dump({'channel_info': channelInfo, 'messages': messages}, outFile, indent=4)
@@ -130,11 +131,11 @@ def getDirectMessages(slack, ownerId, userIdNameMap, dryRun):
 # fetch and write history for all private channels
 # also known as groups in the slack API.
 def getPrivateChannels(slack, dryRun):
-  groups = slack.groups.list().body['groups']
+  groups = slack.conversations.list(types="private_channel").body['channels']
 
   print("\nfound private channels:")
   for group in groups:
-    print("{0}: ({1} members)".format(group['name'], len(group['members'])))
+    print("{0}: ({1} members)".format(group['name'], group.get('num_members', 0)))
 
   if not dryRun:
     parentDir = "private_channels"
@@ -144,8 +145,8 @@ def getPrivateChannels(slack, dryRun):
       messages = []
       print("getting history for private channel {0} with id {1}".format(group['name'], group['id']))
       fileName = "{parent}/{file}.json".format(parent = parentDir, file = group['name'])
-      messages = getHistory(slack.groups, group['id'])
-      channelInfo = slack.groups.info(group['id']).body['group']
+      messages = getHistory(slack.conversations, group['id'])
+      channelInfo = slack.conversations.info(group['id']).body['channel']
       with open(fileName, 'w') as outFile:
         print("writing {0} records to {1}".format(len(messages), fileName))
         json.dump({'channel_info': channelInfo, 'messages': messages}, outFile, indent=4)
