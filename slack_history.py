@@ -136,7 +136,7 @@ def getChannels(slack, dryRun, get_threads = True):
 
 # fetch and write history for all direct message conversations
 # also known as IMs in the slack API.
-def getDirectMessages(slack, ownerId, userIdNameMap, dryRun):
+def getDirectMessages(slack, ownerId, userIdNameMap, dryRun, get_threads = True):
   dms = slack.conversations.list(types="im,mpim").body['channels']
 
   print("\nfound direct messages (1:1) with the following users:")
@@ -227,7 +227,13 @@ if __name__ == "__main__":
     '--skipChannels',
     action='store_true',
     default=False,
-    help="skip fetching history for channels")
+    help="skip fetching history for public channels")
+  
+  parser.add_argument(
+    '--skipAllChannels',
+    action='store_true',
+    default=False,
+    help="skip fetching history for public & private channels")
 
   parser.add_argument(
     '--skipDirectMessages',
@@ -256,10 +262,10 @@ if __name__ == "__main__":
       }
       json.dump(metadata, outFile, indent=4)
 
-  if not args.skipChannels:
+  if not args.skipAllChannels and not args.skipChannels:
     getChannels(slack, dryRun, get_threads = not skipThreads)
 
-  if not args.skipPrivateChannels:
+  if not args.skipAllChannels and not args.skipPrivateChannels:
     getPrivateChannels(slack, dryRun, get_threads = not skipThreads)
 
   if not args.skipDirectMessages:
