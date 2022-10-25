@@ -1,6 +1,6 @@
 a fork of https://gist.github.com/Chandler/fb7a070f52883849de35
 
-_Note: The API calls were updated for the new `conversation` API, but the instructions below to get a token are outdated._
+_Note: The API calls were updated for the new `conversation` API; the OAuth Token instructions have been updated._
 
 My fork is solely to document how to use the code with python3. If you are
 unfamiliar with python3 but own a mac laptop.
@@ -19,17 +19,25 @@ https://get.slack.help/hc/en-us/articles/204897248
 
 > If you want to export the contents of your own private groups and direct messages please see our API documentation.
 
-- step 1 visit https://api.slack.com/docs/oauth-test-tokens and click "generate-test-token"
+1. Create a new app for the workspace (and select "From scratch"): https://api.slack.com/apps?new_app=1
+2. Go to "Add features and functionality" and select "Permissions"
+3. Add the following **user** permissions:
 
-  ```shell
-  open 'https://api.slack.com/docs/oauth-test-tokens'
-  ```
+```
+users:read
+channels:history
+channels:read
+groups:history
+groups:read
+im:history
+im:read
+mpim:history
+mpim:read
+```
 
-- step 2 check https://api.slack.com/tokens
-
-  ```shell
-  open 'https://api.slack.com/tokens'
-  ```
+4. Near the top of the page click "[Re?]install App to Workspace"
+5. Click the "OAuth & Permissions" tab, and scroll down to "OAuth Tokens for Your Workspace"
+6. Copy the "User OAuth Token" (it will start with `xoxp-`)
 
 #### A simple usage example
 
