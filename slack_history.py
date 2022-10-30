@@ -1,6 +1,6 @@
 # MIT License
 
-# Copyright (c) 2016 Chandler Abraham
+# Copyright (c) 2016 Chandler Abraham, 2022 Jérémie O. Lumbroso
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -49,19 +49,38 @@ import os
 #  python slack_history.py --token='123token'
 #  python slack_history.py --token='123token' --dryRun=True
 #  python slack_history.py --token='123token' --skipDirectMessages
-#  python slack_history.py --token='123token' --skipDirectMessages --skipPrivateChannels
+#  python slack_history.py --token='123token' --skipDirectMessages --skipPrivateChannels --skipThreads
 
+
+def getThread(channelId, threadTs, pageSize = 100):
+  messages = []
+  lastTimestamp = None
+
+  while(True):
+    response = slack.conversations.replies(
+      channel = channelId,
+      ts      = threadTs,
+      latest  = lastTimestamp,
+      oldest  = 0,
+      limit   = pageSize
+    ).body
+
+    messages.extend(response['messages'])
+
+    if (response['has_more'] == True):
+      lastTimestamp = messages[-1]['ts'] # -1 means last element in a list
+    else:
+      break
+  return messages
 
 # fetches the complete message history for a channel/group/im
 #
 # pageableObject could be:
-# slack.channel
-# slack.groups
-# slack.im
+# slack.conversations
 #
 # channelId is the id of the channel/group/im you want to download history for.
 
-def getHistory(pageableObject, channelId, pageSize = 100):
+def getHistory(pageableObject, channelId, pageSize = 100, get_threads = True):
   messages = []
   lastTimestamp = None
 
@@ -70,10 +89,20 @@ def getHistory(pageableObject, channelId, pageSize = 100):
       channel = channelId,
       latest  = lastTimestamp,
       oldest  = 0,
-      count   = pageSize
+      limit   = pageSize
     ).body
 
-    messages.extend(response['messages'])
+    msgs = response['messages']
+
+    # see https://api.slack.com/messaging/retrieving#finding_threads
+    for i in range(len(msgs)):
+      if get_threads and 'thread_ts' in msgs[i]:
+        threadTs = msgs[i]['thread_ts']
+        if threadTs == msgs[i]['ts']:
+          replies_data = getThread(channelId, threadTs)
+          msgs[i]['replies'] = replies_data
+
+    messages.extend(msgs)
 
     if (response['has_more'] == True):
       lastTimestamp = messages[-1]['ts'] # -1 means last element in a list
@@ -86,8 +115,8 @@ def mkdir(directory):
     os.makedirs(directory)
 
 # fetch and write history for all public channels
-def getChannels(slack, dryRun):
-  channels = slack.channels.list().body['channels']
+def getChannels(slack, dryRun, get_threads = True):
+  channels = slack.conversations.list(types="public_channel").body['channels']
 
   print("\nfound channels: ")
   for channel in channels:
@@ -99,42 +128,49 @@ def getChannels(slack, dryRun):
     for channel in channels:
       print("getting history for channel {0}".format(channel['name']))
       fileName = "{parent}/{file}.json".format(parent = parentDir, file = channel['name'])
-      messages = getHistory(slack.channels, channel['id'])
-      channelInfo = slack.channels.info(channel['id']).body['channel']
+      messages = getHistory(slack.conversations, channel['id'], get_threads = get_threads)
+      channelInfo = slack.conversations.info(channel['id']).body['channel']
       with open(fileName, 'w') as outFile:
         print("writing {0} records to {1}".format(len(messages), fileName))
         json.dump({'channel_info': channelInfo, 'messages': messages }, outFile, indent=4)
 
 # fetch and write history for all direct message conversations
 # also known as IMs in the slack API.
-def getDirectMessages(slack, ownerId, userIdNameMap, dryRun):
-  dms = slack.im.list().body['ims']
+def getDirectMessages(slack, ownerId, userIdNameMap, dryRun, get_threads = True):
+  # apparently passing "im,mpim" to the types parameter doesn't work
+  # so fetching them separately
+  dms = slack.conversations.list(types="im").body['channels']
+  mpdms = slack.conversations.list(types="mpim").body['channels']
+  dms = dms + mpdms
 
   print("\nfound direct messages (1:1) with the following users:")
+  
   for dm in dms:
-    print(userIdNameMap.get(dm['user'], dm['user'] + " (name unknown)"))
+    dm_recipient = dm["name"] if "name" in dm else dm["user"]
+    print(userIdNameMap.get(dm_recipient, dm_recipient + " (name unknown)"))
 
   if not dryRun:
     parentDir = "direct_messages"
     mkdir(parentDir)
     for dm in dms:
-      name = userIdNameMap.get(dm['user'], dm['user'] + " (name unknown)")
+      dm_recipient = dm["name"] if "name" in dm else dm["user"]
+      name = userIdNameMap.get(dm_recipient, dm_recipient + " (name unknown)")
       print("getting history for direct messages with {0}".format(name))
       fileName = "{parent}/{file}.json".format(parent = parentDir, file = name)
-      messages = getHistory(slack.im, dm['id'])
-      channelInfo = {'members': [dm['user'], ownerId]}
+      messages = getHistory(slack.conversations, dm['id'], get_threads = get_threads)
+      channelInfo = {'members': [dm_recipient, ownerId]}
       with open(fileName, 'w') as outFile:
         print("writing {0} records to {1}".format(len(messages), fileName))
         json.dump({'channel_info': channelInfo, 'messages': messages}, outFile, indent=4)
 
 # fetch and write history for all private channels
 # also known as groups in the slack API.
-def getPrivateChannels(slack, dryRun):
-  groups = slack.groups.list().body['groups']
+def getPrivateChannels(slack, dryRun, get_threads = True):
+  groups = slack.conversations.list(types="private_channel").body['channels']
 
   print("\nfound private channels:")
   for group in groups:
-    print("{0}: ({1} members)".format(group['name'], len(group['members'])))
+    print("{0}: ({1} members)".format(group['name'], group.get('num_members', 0)))
 
   if not dryRun:
     parentDir = "private_channels"
@@ -144,8 +180,8 @@ def getPrivateChannels(slack, dryRun):
       messages = []
       print("getting history for private channel {0} with id {1}".format(group['name'], group['id']))
       fileName = "{parent}/{file}.json".format(parent = parentDir, file = group['name'])
-      messages = getHistory(slack.groups, group['id'])
-      channelInfo = slack.groups.info(group['id']).body['group']
+      messages = getHistory(slack.conversations, group['id'], get_threads = get_threads)
+      channelInfo = slack.conversations.info(group['id']).body['channel']
       with open(fileName, 'w') as outFile:
         print("writing {0} records to {1}".format(len(messages), fileName))
         json.dump({'channel_info': channelInfo, 'messages': messages}, outFile, indent=4)
@@ -178,6 +214,12 @@ if __name__ == "__main__":
     action='store_true',
     default=False,
     help="if dryRun is true, don't fetch/write history only get channel names")
+  
+  parser.add_argument(
+    '--skipThreads',
+    action='store_true',
+    default=False,
+    help="if skipThreads is true, don't fetch threads")
 
   parser.add_argument(
     '--skipPrivateChannels',
@@ -189,7 +231,13 @@ if __name__ == "__main__":
     '--skipChannels',
     action='store_true',
     default=False,
-    help="skip fetching history for channels")
+    help="skip fetching history for public channels")
+  
+  parser.add_argument(
+    '--skipAllChannels',
+    action='store_true',
+    default=False,
+    help="skip fetching history for public & private channels")
 
   parser.add_argument(
     '--skipDirectMessages',
@@ -207,6 +255,8 @@ if __name__ == "__main__":
 
   dryRun = args.dryRun
 
+  skipThreads = args.skipThreads
+
   if not dryRun:
     with open('metadata.json', 'w') as outFile:
       print("writing metadata")
@@ -216,11 +266,11 @@ if __name__ == "__main__":
       }
       json.dump(metadata, outFile, indent=4)
 
-  if not args.skipChannels:
-    getChannels(slack, dryRun)
+  if not args.skipAllChannels and not args.skipChannels:
+    getChannels(slack, dryRun, get_threads = not skipThreads)
 
-  if not args.skipPrivateChannels:
-    getPrivateChannels(slack, dryRun)
+  if not args.skipAllChannels and not args.skipPrivateChannels:
+    getPrivateChannels(slack, dryRun, get_threads = not skipThreads)
 
   if not args.skipDirectMessages:
-    getDirectMessages(slack, testAuth['user_id'], userIdNameMap, dryRun)
+    getDirectMessages(slack, testAuth['user_id'], userIdNameMap, dryRun, get_threads = not skipThreads)
