@@ -137,7 +137,11 @@ def getChannels(slack, dryRun, get_threads = True):
 # fetch and write history for all direct message conversations
 # also known as IMs in the slack API.
 def getDirectMessages(slack, ownerId, userIdNameMap, dryRun, get_threads = True):
-  dms = slack.conversations.list(types="im,mpim").body['channels']
+  # apparently passing "im,mpim" to the types parameter doesn't work
+  # so fetching them separately
+  dms = slack.conversations.list(types="im").body['channels']
+  mpdms = slack.conversations.list(types="mpim").body['channels']
+  dms = dms + mpdms
 
   print("\nfound direct messages (1:1) with the following users:")
   
